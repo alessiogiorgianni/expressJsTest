@@ -1,0 +1,30 @@
+services:
+  node-application:
+    build: .
+    container_name: node-application
+    ports:
+      - "3000:3000"
+      - "9229:9229"
+    environment:
+      NODE_PORT: 3000
+      DB_HOST: postgres
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: myappdb
+      DB_PORT: 5432
+    restart: always
+  postgres:
+    image: postgres:15
+    container_name: postgres-db
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: myappdb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  pgdata:
