@@ -20,14 +20,15 @@ export interface DeleteTaskRequest {
 }
 
 export interface User {
-    id?: number,
-    username?: string,
-    password?: string,
-    refreshToken?: string
+    id: number,
+    username: string,
+    password_hash: string,
+    password_salt: string,
+    refresh_token?: string
 }
 
 export interface Task {
     id?: number,
-    userId: number,
+    user_id: number,
     title: string
 }

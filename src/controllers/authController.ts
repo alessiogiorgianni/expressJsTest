@@ -1,15 +1,13 @@
 import { Request, Response } from 'express'
-import { addUser, findUserByUsername } from '../config/db'
-import { LoginRequest } from '../types'
+import { addUser, findUserByUsername, updateUserRefreshToken } from '../config/db'
+import { LoginRequest, User } from '../types'
 import jwt from 'jsonwebtoken'
-import dotenv from 'dotenv'
-
-dotenv.config()
+import { isHashValid } from '../util'
 
 export async function authRegister(req: Request, res: Response) {
     const user = req.body
 
-    await addUser(user)
+    await addUser(user.username, user.password)
 
     return res.json({ message: 'Registration successful!' })
 }
@@ -17,29 +15,31 @@ export async function authRegister(req: Request, res: Response) {
 export async function authLogin(req: Request<{}, {}, LoginRequest>, res: Response) {
     const { username, password }: LoginRequest = req.body
 
-    const user = await findUserByUsername(username)
+    const users: User[] = await findUserByUsername(username)
+    const user = (users.length >= 0) ? users[0] : undefined
+    
+    if (user !== undefined && isHashValid(password, user.password_salt, user.password_hash)) {
+        // create jwt token
+        const accessToken = jwt.sign(
+            { 'username': user.username },
+            process.env.ACCESS_TOKEN_SECRET as string,
+            { expiresIn: '3600s' }
+        )
 
-    if (user !== undefined) {
-        if (user.password === password) {
-            // create jwt token
-            const accessToken = jwt.sign(
-                { 'username': user.username },
-                process.env.ACCESS_TOKEN_SECRET,
-                { expiresIn: '30s' }
-            )
+        const refreshToken = jwt.sign(
+            { 'username': user.username },
+            process.env.REFRESH_TOKEN_SECRET as string,
+            { expiresIn: '1d' }
+        )
 
-            const refreshToken = jwt.sign(
-                { 'username': user.username },
-                process.env.REFRESH_TOKEN_SECRET,
-                { expiresIn: '1d' }
-            )
+        updateUserRefreshToken(user.id, refreshToken)
 
-            return res.json({ message: 'Login success' })
-        }
+        res.header('Authorization', `Bearer ${accessToken}`)
+        
+        return res.sendStatus(200)
     }
-    else {
-        res.sendStatus(401)
 
-        res.json({ message: 'User not found' })
-    }
+    res.sendStatus(401)
+
+    return res.json({ message: 'Unauthorized' })
 }

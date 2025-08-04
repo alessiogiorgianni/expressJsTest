@@ -1,6 +1,7 @@
 import { User } from '../types'
 import { Client } from 'pg'
 import { Task } from '../types'
+import { hashPassword } from '../util';
 
 const client = new Client({
   host: process.env.DB_HOST,
@@ -22,10 +23,22 @@ client.connect()
 // --- Utils Query --- //
 
 export async function initDB() {
-  client.query(`DROP TABLE IF EXISTS users`)
-  client.query(`CREATE TABLE users(id SERIAL PRIMARY KEY, username VARCHAR(255), password VARCHAR(255), refresh_token VARCHAR(128))`)
+  const adminPassword = hashPassword(process.env.ADMIN_SECRET_PASSWORD as string)
+
   client.query(`DROP TABLE IF EXISTS tasks`)
-  client.query(`CREATE TABLE tasks(id SERIAL PRIMARY KEY, user_id INT, title VARCHAR(255), CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(id))`)
+  client.query(`DROP TABLE IF EXISTS users`)
+  
+  client.query(`CREATE TABLE users(id SERIAL PRIMARY KEY, username VARCHAR(255) NOT NULL, password_hash VARCHAR(255) NOT NULL, password_salt VARCHAR(255) NOT NULL, refresh_token VARCHAR(1024))`)
+  client.query(
+    `INSERT INTO users(username, password_hash, password_salt) VALUES($1, $2, $3)`,
+    [
+      'admin',
+      adminPassword.hash, 
+      adminPassword.salt
+    ]
+  )
+
+  client.query(`CREATE TABLE tasks(id SERIAL PRIMARY KEY, user_id INT, title VARCHAR(255) NOT NULL, CONSTRAINT fk_user FOREIGN KEY(user_id) REFERENCES users(id))`)
 }
 
 
@@ -37,18 +50,31 @@ export async function findAllUsers(): Promise<User[]> {
   return response.rows
 }
 
-export async function findUserByUsername(username: string) {
+export async function findUserByUsername(username: string): Promise<User[]> {
   const response = await client.query('SELECT * FROM users WHERE username = $1', [username])
 
   return response.rows
 }
 
-export async function addUser(user: User) {
+export async function addUser(username: string, password: string) {
+  const {hash, salt} = hashPassword(username)
+
   await client.query(
-    "INSERT INTO users (username, password, email) VALUES ($1, $2, $3)",
+    "INSERT INTO users (username, password_hash, password_salt) VALUES ($1, $2, $3)",
     [
-      user.username,
-      user.password
+      username,
+      hash,
+      salt,
+    ]
+  )
+}
+
+export async function updateUserRefreshToken(userId: number, refreshToken: string) {
+  await client.query(
+    "UPDATE users SET refresh_token = $1 WHERE id = $2",
+    [
+      refreshToken,
+      userId
     ]
   )
 }

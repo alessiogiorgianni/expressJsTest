@@ -8,7 +8,7 @@ export async function addTask(req: Request<{}, {}, CreateTaskRequest>, res: Resp
 
     await createTask(userId, title)
 
-    res.json({ message: 'Task created successfully!' })
+    return res.json({ message: 'Task created successfully!' })
 }
 
 export async function removeTask(req: Request<{}, {}, DeleteTaskRequest>, res: Response) {
@@ -21,14 +21,15 @@ export async function removeTask(req: Request<{}, {}, DeleteTaskRequest>, res: R
     }
 
     const taskToDelete = tasks.filter((task: Task) => task.id === taskId)
+    
+    if (taskToDelete.length > 0) {
+        const task = taskToDelete[0]
 
-    taskToDelete.forEach(async (task: Task) => {
         // Verify if user has permission to delete HIS task (cannot delete other user's task)
-        if (task.userId === userId) {
-            await deleteTask(userId, taskId)
+        if (task.user_id === userId) {
+            deleteTask(userId, taskId)
         }
-    })
+    }
+
+    return res.json({message: 'Task deleted successfully!'})
 }
-
-
-module.exports = { createTask: addTask, deleteTask: removeTask }
